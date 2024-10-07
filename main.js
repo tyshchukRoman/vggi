@@ -86,15 +86,60 @@ function draw() {
     surface.Draw();
 }
 
-function CreateSurfaceData()
-{
+function CreateSurfaceData() {
     let vertexList = [];
+    
+    // Constants based on your image. Adjust these as needed.
+    let a = 1.5;
+    let b = 3;
+    let c = 2;
+    let d = 4;
 
-    for (let i=0; i<360; i+=5) {
-        vertexList.push( Math.sin(deg2rad(i)), 1, Math.cos(deg2rad(i)) );
-        vertexList.push( Math.sin(deg2rad(i)), 0, Math.cos(deg2rad(i)) );
+    // Function f(v) from the parametric equation
+    function f(v) {
+        return (a * b) / Math.sqrt(a * a * Math.sin(v) * Math.sin(v) + b * b * Math.cos(v) * Math.cos(v));
     }
 
+    // Define the ranges and step sizes for t and v
+    let stepsU = 80; // steps for t
+    let stepsV = 80; // steps for v
+    let minU = 0;
+    let maxU = 2 * Math.PI;
+    let minV = 0;
+    let maxV = 2 * Math.PI;
+
+    let stepU = (maxU - minU) / stepsU;
+    let stepV = (maxV - minV) / stepsV;
+
+    // Scaling factor to make the surface smaller
+    let scale = 0.2; // Change this value to adjust the size (0.2 makes it 5x smaller)
+
+    // Loop over the parameters u (t) and v
+    for (let u = minU; u <= maxU; u += stepU) {
+        for (let v = minV; v <= maxV; v += stepV) {
+            // Calculate the parametric equations
+            let cos_u = Math.cos(u);
+            let sin_u = Math.sin(u);
+            let cos_v = Math.cos(v);
+            let sin_v = Math.sin(v);
+            
+            let f_v = f(v);
+
+            // Parametric equations for x, y, z
+            let x = 0.5 * ((f_v * (1 + cos_u) + (d * d - c * c) * (1 - cos_u) / f_v) * cos_v);
+            let y = 0.5 * ((f_v * (1 + cos_u) + (d * d - c * c) * (1 - cos_u) / f_v) * sin_v);
+            let z = 0.5 * ((f_v - (d * d - c * c) / f_v) * sin_u);
+            
+            // Apply scaling factor
+            x *= scale;
+            y *= scale;
+            z *= scale;
+            
+            // Push the scaled vertices to the vertex list
+            vertexList.push(x, y, z);
+        }
+    }
+    
     return vertexList;
 }
 
