@@ -80,41 +80,65 @@ function draw() {
     surface.Draw();
 }
 
-function CreateSphereData(radius = 1, latSteps = 30, lonSteps = 30) {
-    let verticesLatitude = []; // Stores latitude lines (horizontal)
-    let verticesLongitude = []; // Stores longitude lines (vertical)
+function CreateVirichCyclicSurfaceData(a = 1.5, b = 3, c = 2, d = 4, stepsT = 30, stepsV = 30) {
+    let verticesT = []; // Polyline along t
+    let verticesV = []; // Polyline along v
 
-    // Latitude lines (Horizontal circles parallel to the equator)
-    for (let i = 0; i <= latSteps; i++) {
-        let theta = (i * Math.PI) / latSteps; // From 0 to π
-        let sinTheta = Math.sin(theta);
-        let cosTheta = Math.cos(theta);
+    let stepT = (2 * Math.PI) / stepsT;
+    let stepV = (2 * Math.PI) / stepsV;
 
-        for (let j = 0; j <= lonSteps; j++) {
-            let phi = (j * 2 * Math.PI) / lonSteps; // From 0 to 2π
-            let x = radius * sinTheta * Math.cos(phi);
-            let y = radius * cosTheta;
-            let z = radius * sinTheta * Math.sin(phi);
+    // Helper function to calculate f(v)
+    function f(v) {
+        return (a * b) / Math.sqrt(a * a * Math.sin(v) ** 2 + b * b * Math.cos(v) ** 2);
+    }
 
-            verticesLatitude.push(x, y, z);
+    const scale = 0.2;
+
+    // Generate vertices along t (fix v for each t)
+    for (let t = 0; t <= 2 * Math.PI; t += stepT) {
+        for (let v = 0; v <= 2 * Math.PI; v += stepV) {
+            let cos_t = Math.cos(t);
+            let sin_t = Math.sin(t);
+            let cos_v = Math.cos(v);
+            let sin_v = Math.sin(v);
+
+            let f_v = f(v);
+
+            let x = 0.5 * ((f_v * (1 + cos_t) + (d * d - c * c) * (1 - cos_t) / f_v) * cos_v);
+            let y = 0.5 * ((f_v * (1 + cos_t) + (d * d - c * c) * (1 - cos_t) / f_v) * sin_v);
+            let z = 0.5 * ((f_v - (d * d - c * c) / f_v) * sin_t);
+
+            x = x * scale;
+            y = y * scale;
+            z = z * scale;
+
+            verticesT.push(x, y, z); // Store vertices along t
         }
     }
 
-    // Longitude lines (Vertical lines from pole to pole)
-    for (let j = 0; j <= lonSteps; j++) {
-        let phi = (j * 2 * Math.PI) / lonSteps;
+    // Generate vertices along v (fix t for each v)
+    for (let v = 0; v <= 2 * Math.PI; v += stepV) {
+        for (let t = 0; t <= 2 * Math.PI; t += stepT) {
+            let cos_t = Math.cos(t);
+            let sin_t = Math.sin(t);
+            let cos_v = Math.cos(v);
+            let sin_v = Math.sin(v);
 
-        for (let i = 0; i <= latSteps; i++) {
-            let theta = (i * Math.PI) / latSteps;
-            let x = radius * Math.sin(theta) * Math.cos(phi);
-            let y = radius * Math.cos(theta);
-            let z = radius * Math.sin(theta) * Math.sin(phi);
+            let f_v = f(v);
 
-            verticesLongitude.push(x, y, z);
+            let x = 0.5 * ((f_v * (1 + cos_t) + (d * d - c * c) * (1 - cos_t) / f_v) * cos_v);
+            let y = 0.5 * ((f_v * (1 + cos_t) + (d * d - c * c) * (1 - cos_t) / f_v) * sin_v);
+            let z = 0.5 * ((f_v - (d * d - c * c) / f_v) * sin_t);
+
+            x = x * scale;
+            y = y * scale;
+            z = z * scale;
+
+            verticesV.push(x, y, z); // Store vertices along v
         }
     }
 
-    return { verticesLatitude, verticesLongitude };
+    return { verticesT, verticesV };
 }
 
 
@@ -128,9 +152,9 @@ function initGL() {
     shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "ModelViewProjectionMatrix");
     shProgram.iColor = gl.getUniformLocation(prog, "color");
 
-    surface = new Model('Sphere');
-    let { verticesLatitude, verticesLongitude } = CreateSphereData(1, 30, 30); // Generate sphere data
-    surface.BufferData([verticesLatitude, verticesLongitude]);
+    surface = new Model('VirichCyclicSurface');
+    let { verticesT, verticesV } = CreateVirichCyclicSurfaceData(); // Generate surface data
+    surface.BufferData([verticesT, verticesV]);
 
     gl.enable(gl.DEPTH_TEST);
 }
