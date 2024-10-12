@@ -13,25 +13,28 @@ function deg2rad(angle) {
 // Constructor
 function Model(name) {
     this.name = name;
-    this.iVertexBuffer = gl.createBuffer();
-    this.count = 0;
+    this.buffers = [];
+    this.counts = [];
 
-    this.BufferData = function(vertices) {
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
-
-        this.count = vertices.length/3;
-    }
+    this.BufferData = function(verticesArray) {
+        verticesArray.forEach(vertices => {
+            let buffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
+            this.buffers.push(buffer);
+            this.counts.push(vertices.length / 3);
+        });
+    };
 
     this.Draw = function() {
+        this.buffers.forEach((buffer, index) => {
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shProgram.iAttribVertex);
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
-        gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(shProgram.iAttribVertex);
-   
-        gl.drawArrays(gl.LINE_STRIP, 0, this.count);
-    }
+            gl.drawArrays(gl.LINE_STRIP, 0, this.counts[index]);
+        });
+    };
 }
 
 
@@ -58,105 +61,76 @@ function ShaderProgram(name, program) {
  * (Note that the use of the above drawPrimitive function is not an efficient
  * way to draw with WebGL.  Here, the geometry is so simple that it doesn't matter.)
  */
-function draw() { 
-    gl.clearColor(0,0,0,1);
+function draw() {
+    gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    
-    /* Set the values of the projection transformation */
-    let projection = m4.perspective(Math.PI/8, 1, 8, 12); 
-    
-    /* Get the view matrix from the SimpleRotator object.*/
+
+    let projection = m4.perspective(Math.PI / 8, 1, 8, 12);
     let modelView = spaceball.getViewMatrix();
+    let rotateToPointZero = m4.axisRotation([0.707, 0.707, 0], 0.7);
+    let translateToPointZero = m4.translation(0, 0, -10);
 
-    let rotateToPointZero = m4.axisRotation([0.707,0.707,0], 0.7);
-    let translateToPointZero = m4.translation(0,0,-10);
+    let matAccum0 = m4.multiply(rotateToPointZero, modelView);
+    let matAccum1 = m4.multiply(translateToPointZero, matAccum0);
+    let modelViewProjection = m4.multiply(projection, matAccum1);
 
-    let matAccum0 = m4.multiply(rotateToPointZero, modelView );
-    let matAccum1 = m4.multiply(translateToPointZero, matAccum0 );
-        
-    /* Multiply the projection matrix times the modelview matrix to give the
-       combined transformation matrix, and send that to the shader program. */
-    let modelViewProjection = m4.multiply(projection, matAccum1 );
-
-    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection );
-    
-    /* Draw the six faces of a cube, with different colors. */
-    gl.uniform4fv(shProgram.iColor, [1,1,0,1] );
+    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection);
+    gl.uniform4fv(shProgram.iColor, [1, 1, 0, 1]);
 
     surface.Draw();
 }
 
-function CreateSurfaceData() {
-    let vertexList = [];
-    
-    // Constants based on your image. Adjust these as needed.
-    let a = 1.5;
-    let b = 3;
-    let c = 2;
-    let d = 4;
+function CreateSphereData(radius = 1, latSteps = 30, lonSteps = 30) {
+    let verticesLatitude = []; // Stores latitude lines (horizontal)
+    let verticesLongitude = []; // Stores longitude lines (vertical)
 
-    // Function f(v) from the parametric equation
-    function f(v) {
-        return (a * b) / Math.sqrt(a * a * Math.sin(v) * Math.sin(v) + b * b * Math.cos(v) * Math.cos(v));
-    }
+    // Latitude lines (Horizontal circles parallel to the equator)
+    for (let i = 0; i <= latSteps; i++) {
+        let theta = (i * Math.PI) / latSteps; // From 0 to π
+        let sinTheta = Math.sin(theta);
+        let cosTheta = Math.cos(theta);
 
-    // Define the ranges and step sizes for t and v
-    let stepsU = 80; // steps for t
-    let stepsV = 80; // steps for v
-    let minU = 0;
-    let maxU = 2 * Math.PI;
-    let minV = 0;
-    let maxV = 2 * Math.PI;
+        for (let j = 0; j <= lonSteps; j++) {
+            let phi = (j * 2 * Math.PI) / lonSteps; // From 0 to 2π
+            let x = radius * sinTheta * Math.cos(phi);
+            let y = radius * cosTheta;
+            let z = radius * sinTheta * Math.sin(phi);
 
-    let stepU = (maxU - minU) / stepsU;
-    let stepV = (maxV - minV) / stepsV;
-
-    // Scaling factor to make the surface smaller
-    let scale = 0.2; // Change this value to adjust the size (0.2 makes it 5x smaller)
-
-    // Loop over the parameters u (t) and v
-    for (let u = minU; u <= maxU; u += stepU) {
-        for (let v = minV; v <= maxV; v += stepV) {
-            // Calculate the parametric equations
-            let cos_u = Math.cos(u);
-            let sin_u = Math.sin(u);
-            let cos_v = Math.cos(v);
-            let sin_v = Math.sin(v);
-            
-            let f_v = f(v);
-
-            // Parametric equations for x, y, z
-            let x = 0.5 * ((f_v * (1 + cos_u) + (d * d - c * c) * (1 - cos_u) / f_v) * cos_v);
-            let y = 0.5 * ((f_v * (1 + cos_u) + (d * d - c * c) * (1 - cos_u) / f_v) * sin_v);
-            let z = 0.5 * ((f_v - (d * d - c * c) / f_v) * sin_u);
-            
-            // Apply scaling factor
-            x *= scale;
-            y *= scale;
-            z *= scale;
-            
-            // Push the scaled vertices to the vertex list
-            vertexList.push(x, y, z);
+            verticesLatitude.push(x, y, z);
         }
     }
-    
-    return vertexList;
+
+    // Longitude lines (Vertical lines from pole to pole)
+    for (let j = 0; j <= lonSteps; j++) {
+        let phi = (j * 2 * Math.PI) / lonSteps;
+
+        for (let i = 0; i <= latSteps; i++) {
+            let theta = (i * Math.PI) / latSteps;
+            let x = radius * Math.sin(theta) * Math.cos(phi);
+            let y = radius * Math.cos(theta);
+            let z = radius * Math.sin(theta) * Math.sin(phi);
+
+            verticesLongitude.push(x, y, z);
+        }
+    }
+
+    return { verticesLatitude, verticesLongitude };
 }
 
 
 /* Initialize the WebGL context. Called from init() */
 function initGL() {
-    let prog = createProgram( gl, vertexShaderSource, fragmentShaderSource );
-
+    let prog = createProgram(gl, vertexShaderSource, fragmentShaderSource);
     shProgram = new ShaderProgram('Basic', prog);
     shProgram.Use();
 
-    shProgram.iAttribVertex              = gl.getAttribLocation(prog, "vertex");
+    shProgram.iAttribVertex = gl.getAttribLocation(prog, "vertex");
     shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "ModelViewProjectionMatrix");
-    shProgram.iColor                     = gl.getUniformLocation(prog, "color");
+    shProgram.iColor = gl.getUniformLocation(prog, "color");
 
-    surface = new Model('Surface');
-    surface.BufferData(CreateSurfaceData());
+    surface = new Model('Sphere');
+    let { verticesLatitude, verticesLongitude } = CreateSphereData(1, 30, 30); // Generate sphere data
+    surface.BufferData([verticesLatitude, verticesLongitude]);
 
     gl.enable(gl.DEPTH_TEST);
 }
