@@ -1,42 +1,13 @@
 'use strict';
 
 let gl;                         // The webgl context.
-let surface;                    // A surface model
+let model;                    // A surface model
 let shProgram;                  // A shader program
 let spaceball;                  // A SimpleRotator object that lets the user rotate the view by mouse.
 
 function deg2rad(angle) {
     return angle * Math.PI / 180;
 }
-
-
-// Constructor
-function Model(name) {
-    this.name = name;
-    this.buffers = [];
-    this.counts = [];
-
-    this.BufferData = function(verticesArray) {
-        verticesArray.forEach(vertices => {
-            let buffer = gl.createBuffer();
-            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
-            this.buffers.push(buffer);
-            this.counts.push(vertices.length / 3);
-        });
-    };
-
-    this.Draw = function() {
-        this.buffers.forEach((buffer, index) => {
-            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-            gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
-            gl.enableVertexAttribArray(shProgram.iAttribVertex);
-
-            gl.drawArrays(gl.LINE_STRIP, 0, this.counts[index]);
-        });
-    };
-}
-
 
 // Constructor
 function ShaderProgram(name, program) {
@@ -55,7 +26,6 @@ function ShaderProgram(name, program) {
         gl.useProgram(this.prog);
     }
 }
-
 
 /* Draws a colored cube, along with a set of coordinate axes.
  * (Note that the use of the above drawPrimitive function is not an efficient
@@ -77,70 +47,8 @@ function draw() {
     gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection);
     gl.uniform4fv(shProgram.iColor, [1, 1, 0, 1]);
 
-    surface.Draw();
+    model.Draw();
 }
-
-function CreateVirichCyclicSurfaceData(a = 1.5, b = 3, c = 2, d = 4, stepsT = 30, stepsV = 30) {
-    let verticesT = []; // Polyline along t
-    let verticesV = []; // Polyline along v
-
-    let stepT = (2 * Math.PI) / stepsT;
-    let stepV = (2 * Math.PI) / stepsV;
-
-    // Helper function to calculate f(v)
-    function f(v) {
-        return (a * b) / Math.sqrt(a * a * Math.sin(v) ** 2 + b * b * Math.cos(v) ** 2);
-    }
-
-    const scale = 0.2;
-
-    // Generate vertices along t (fix v for each t)
-    for (let t = 0; t <= 2 * Math.PI; t += stepT) {
-        for (let v = 0; v <= 2 * Math.PI; v += stepV) {
-            let cos_t = Math.cos(t);
-            let sin_t = Math.sin(t);
-            let cos_v = Math.cos(v);
-            let sin_v = Math.sin(v);
-
-            let f_v = f(v);
-
-            let x = 0.5 * ((f_v * (1 + cos_t) + (d * d - c * c) * (1 - cos_t) / f_v) * cos_v);
-            let y = 0.5 * ((f_v * (1 + cos_t) + (d * d - c * c) * (1 - cos_t) / f_v) * sin_v);
-            let z = 0.5 * ((f_v - (d * d - c * c) / f_v) * sin_t);
-
-            x = x * scale;
-            y = y * scale;
-            z = z * scale;
-
-            verticesT.push(x, y, z); // Store vertices along t
-        }
-    }
-
-    // Generate vertices along v (fix t for each v)
-    for (let v = 0; v <= 2 * Math.PI; v += stepV) {
-        for (let t = 0; t <= 2 * Math.PI; t += stepT) {
-            let cos_t = Math.cos(t);
-            let sin_t = Math.sin(t);
-            let cos_v = Math.cos(v);
-            let sin_v = Math.sin(v);
-
-            let f_v = f(v);
-
-            let x = 0.5 * ((f_v * (1 + cos_t) + (d * d - c * c) * (1 - cos_t) / f_v) * cos_v);
-            let y = 0.5 * ((f_v * (1 + cos_t) + (d * d - c * c) * (1 - cos_t) / f_v) * sin_v);
-            let z = 0.5 * ((f_v - (d * d - c * c) / f_v) * sin_t);
-
-            x = x * scale;
-            y = y * scale;
-            z = z * scale;
-
-            verticesV.push(x, y, z); // Store vertices along v
-        }
-    }
-
-    return { verticesT, verticesV };
-}
-
 
 /* Initialize the WebGL context. Called from init() */
 function initGL() {
@@ -152,9 +60,9 @@ function initGL() {
     shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "ModelViewProjectionMatrix");
     shProgram.iColor = gl.getUniformLocation(prog, "color");
 
-    surface = new Model('VirichCyclicSurface');
-    let { verticesT, verticesV } = CreateVirichCyclicSurfaceData(); // Generate surface data
-    surface.BufferData([verticesT, verticesV]);
+    model = new Model('VirichCyclicSurface');
+    let { verticesT, verticesV } = model.CreateSurfaceData(); // Generate surface data
+    model.BufferData([verticesT, verticesV]);
 
     gl.enable(gl.DEPTH_TEST);
 }
@@ -209,14 +117,8 @@ function init() {
             "<p>Sorry, could not get a WebGL graphics context.</p>";
         return;
     }
-    try {
-        initGL();  // initialize the WebGL graphics context
-    }
-    catch (e) {
-        document.getElementById("canvas-holder").innerHTML =
-            "<p>Sorry, could not initialize the WebGL graphics context: " + e + "</p>";
-        return;
-    }
+
+    initGL();  // initialize the WebGL graphics context
 
     spaceball = new TrackballRotator(canvas, draw, 0);
 
