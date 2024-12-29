@@ -2,6 +2,10 @@ function get(name) {
     return parseFloat(document.getElementById(name).value);
 }
 
+function normalizeUV(value, min, max) {
+    return (value - min) / (max - min);
+}
+
 function calculateFacetNormal(v1, v2, v3) {
     const edge1 = [v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]];
     const edge2 = [v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]];
@@ -12,24 +16,52 @@ function calculateFacetNormal(v1, v2, v3) {
         edge1[0] * edge2[1] - edge1[1] * edge2[0]
     ];
 
-    return m4.normalize(normal, []);
+    return m4.normalize(normal, [0, 1, 0]);
 }
 
-function calculateNormals(vertices, indices) {
-    const vertexNormals = new Float32Array(vertices.length).fill(0);
+function calculateTangent(v1, v2, v3, uv1, uv2, uv3) {
+    const edge1 = [v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]];
+    const edge2 = [v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]];
+
+    const deltaUV1 = [uv2[0] - uv1[0], uv2[1] - uv1[1]];
+    const deltaUV2 = [uv3[0] - uv1[0], uv3[1] - uv1[1]];
+
+    const r = 1.0 / (deltaUV1[0] * deltaUV2[1] - deltaUV1[1] * deltaUV2[0]);
+
+    const tangent = [
+        r * (deltaUV2[1] * edge1[0] - deltaUV1[1] * edge2[0]),
+        r * (deltaUV2[1] * edge1[1] - deltaUV1[1] * edge2[1]),
+        r * (deltaUV2[1] * edge1[2] - deltaUV1[1] * edge2[2])
+    ];
+
+    return m4.normalize(tangent, [1, 0, 0]);
+}
+
+function calculateNormalsAndTangents(vertices, uvs, indices) {
+    const normals = new Float32Array(vertices.length).fill(0);
+    const tangents = new Float32Array(vertices.length).fill(0);
+
     const facetNormals = [];
+    const facetTangents = [];
 
     for (let i = 0; i < indices.length; i += 3) {
-        const idx1 = indices[i] * 3;
-        const idx2 = indices[i + 1] * 3;
-        const idx3 = indices[i + 2] * 3;
+        const idx1 = indices[i];
+        const idx2 = indices[i + 1];
+        const idx3 = indices[i + 2];
 
-        const v1 = vertices.slice(idx1, idx1 + 3);
-        const v2 = vertices.slice(idx2, idx2 + 3);
-        const v3 = vertices.slice(idx3, idx3 + 3);
-
+        const v1 = vertices.slice(idx1 * 3, idx1 * 3 + 3);
+        const v2 = vertices.slice(idx2 * 3, idx2 * 3 + 3);
+        const v3 = vertices.slice(idx3 * 3, idx3 * 3 + 3);
+        
         const facetNormal = calculateFacetNormal(v1, v2, v3);
         facetNormals.push({ normal: facetNormal, indices: [indices[i], indices[i + 1], indices[i + 2]] });
+
+        const uv1 = uvs.slice(idx1 * 2, idx1 * 2 + 2);
+        const uv2 = uvs.slice(idx2 * 2, idx2 * 2 + 2);
+        const uv3 = uvs.slice(idx3 * 2, idx3 * 2 + 2);
+
+        const facetTangent = calculateTangent(v1, v2, v3, uv1, uv2, uv3);
+        facetTangents.push({ tangent: facetTangent, indices: [indices[i], indices[i + 1], indices[i + 2]] });
     }
 
     facetNormals.forEach(facet => {
@@ -38,24 +70,46 @@ function calculateNormals(vertices, indices) {
         indices.forEach(idx => {
             const baseIndex = idx * 3;
             
-            vertexNormals[baseIndex] += normal[0];
-            vertexNormals[baseIndex + 1] += normal[1];
-            vertexNormals[baseIndex + 2] += normal[2];
+            normals[baseIndex] += normal[0];
+            normals[baseIndex + 1] += normal[1];
+            normals[baseIndex + 2] += normal[2];
         });
     });
 
-    for (let i = 0; i < vertexNormals.length; i += 3) {
+    facetTangents.forEach(facet => {
+        const { tangent, indices } = facet;
+        indices.forEach(idx => {
+            const baseIndex = idx * 3;
+            
+            tangents[baseIndex] += tangent[0];
+            tangents[baseIndex + 1] += tangent[1];
+            tangents[baseIndex + 2] += tangent[2];
+        });
+    });
+
+    for (let i = 0; i < normals.length; i += 3) {
         const length = Math.sqrt(
-            vertexNormals[i] * vertexNormals[i] +
-            vertexNormals[i + 1] * vertexNormals[i + 1] +
-            vertexNormals[i + 2] * vertexNormals[i + 2]
+            normals[i] * normals[i] +
+            normals[i + 1] * normals[i + 1] +
+            normals[i + 2] * normals[i + 2]
         );
-        vertexNormals[i] /= length;
-        vertexNormals[i + 1] /= length;
-        vertexNormals[i + 2] /= length;
+        normals[i] /= length;
+        normals[i + 1] /= length;
+        normals[i + 2] /= length;
     }
 
-    return vertexNormals;
+    for (let i = 0; i < tangents.length; i += 3) {
+        const tangentLength = Math.sqrt(
+            tangents[i] * tangents[i] +
+            tangents[i + 1] * tangents[i + 1] +
+            tangents[i + 2] * tangents[i + 2]
+        );
+        tangents[i] /= tangentLength;
+        tangents[i + 1] /= tangentLength;
+        tangents[i + 2] /= tangentLength;
+    }
+
+    return {normals, tangents};
 }
 
 function ModelBuilder() {
@@ -98,6 +152,7 @@ function ModelBuilder() {
 
     this.build = function() {
         const vertices = [];
+        const uvs = [];
         const indices = [];
 
         for (let i = 0; i <= uSteps; i++) {
@@ -110,6 +165,7 @@ function ModelBuilder() {
                 const z = this.fz(u, v);
     
                 vertices.push(x, y, z);
+                uvs.push(normalizeUV(u, uMin, uMax), normalizeUV(v, vMin, vMax));
             }
         }
     
@@ -125,27 +181,39 @@ function ModelBuilder() {
             }
         }
 
-        const normals = calculateNormals(vertices, indices);
-        return { vertices, normals, indices };
+        const {normals, tangents} = calculateNormalsAndTangents(vertices, uvs, indices);
+        return { vertices, normals, tangents, uvs, indices };
     }
 }
-
 
 function Model(gl, shProgram) {
     this.iVertexBuffer = gl.createBuffer();
     this.iNormalBuffer = gl.createBuffer();
+    this.iTangentBuffer = gl.createBuffer();
+    this.iUVBuffer = gl.createBuffer();
     this.iIndexBuffer = gl.createBuffer();
+
+    this.idTextureDiffuse = LoadTexture(gl, "./textures/diffuse.jpg");
+    this.idTextureNormal = LoadTexture(gl, "./textures/normal.jpg");
+    this.idTextureSpecular = LoadTexture(gl, "./textures/specular.jpg");
+
     this.count = 0;
 
-    this.BufferData = function(vertices, normals, indices) {
+    this.BufferData = function(vertices, normals, tangents, uvs, indices) {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iNormalBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTangentBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, tangents, gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iUVBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(uvs), gl.STATIC_DRAW);
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(indices), gl.STATIC_DRAW);
 
         this.count = indices.length;
     };
@@ -159,14 +227,31 @@ function Model(gl, shProgram) {
         gl.vertexAttribPointer(shProgram.iAttribNormal, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shProgram.iAttribNormal);
 
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTangentBuffer);
+        gl.vertexAttribPointer(shProgram.iAttribTangent, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(shProgram.iAttribTangent);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iUVBuffer);
+        gl.vertexAttribPointer(shProgram.iAttribUV, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(shProgram.iAttribUV);
+
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
 
-        gl.drawElements(gl.TRIANGLES, this.count, gl.UNSIGNED_SHORT, 0);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.idTextureDiffuse);
+        
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.idTextureNormal);
+        
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, this.idTextureSpecular);
+
+        gl.drawElements(gl.TRIANGLES, this.count, gl.UNSIGNED_INT, 0);
     }
 
     this.CreateSurfaceData = function() {
         let builder = new ModelBuilder();
-        const { vertices, normals, indices } = builder.build();
-        this.BufferData(vertices, normals, indices);
+        const { vertices, normals, tangents, uvs, indices } = builder.build();
+        this.BufferData(vertices, normals, tangents, uvs, indices);
     }
 }
