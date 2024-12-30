@@ -6,9 +6,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Virich Cyclic Surface</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
+            font-family: 'Roboto', sans-serif;
             background: #000;
-            color: #fff;
+            color: #ffffff;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -19,7 +26,11 @@
         }
 
         h2 {
-          margin-bottom: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        h3 {
+            margin-bottom: 1.5rem;
         }
 
         .inputContainer {
@@ -44,7 +55,8 @@
             color: #dcdcdc;
         }
 
-        .inputGroup input {
+        .inputGroup input,
+        .inputGroup input[type="range"] {
             width: 100%;
             padding: 12px;
             border: 2px solid #ffffff;
@@ -55,21 +67,46 @@
             color: #ffffff;
             transition: border 0.3s ease-in-out, background 0.3s ease-in-out;
         }
+
+        #canvas-holder {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 1400px;
+        }
+
+        canvas {
+            display: block;
+            width: 700px;
+            height: 700px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        #coordinates {
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+            text-align: center;
+            color: #ffffff;
+        }
     </style>
 </head>
 
 <body>
-    <h1>#PA3 (Virich Cyclic Surface)</h1>
-    <h2>By Tyshchuk Roman TR-43</h2>
+    <h2>CGW Virich Cyclic Surface</h2>
+    <h3>By Tyshchuk Roman</h3>
 
     <div class="inputContainer">
         <div class="inputGroup">
             <label for="USteps">U Steps</label>
-            <input type="number" name="USteps" id="USteps" min="10" max="250" step="1" value="100">
+            <input type="number" name="USteps" id="USteps" min="10" max="250" step="1" value="300">
         </div>
         <div class="inputGroup">
             <label for="VSteps">V Steps</label>
-            <input type="number" name="VSteps" id="VSteps" min="10" max="250" step="1" value="100">
+            <input type="number" name="VSteps" id="VSteps" min="10" max="250" step="1" value="300">
         </div>
     </div>
 
@@ -92,13 +129,23 @@
         </div>
     </div>
 
+    <div class="inputContainer">
+        <div class="inputGroup">
+            <label for="Angle">Angle</label>
+            <input type="range" name="Angle" id="Angle" min="0" max="360" step="1" value="0">
+        </div>
+    </div>
+
+    <p id="coordinates">Coordinates: (0, 0)</p>
     <div id="canvas-holder">
+        <canvas id="uvcanvas" width="700" height="700"></canvas>
         <canvas id="webglcanvas" width="700" height="700"></canvas>
     </div>
 
     <script src="./shader.gpu"></script>
     <script src="./Utils/m4.js"></script>
     <script src="./Utils/trackball-rotator.js"></script>
+    <script src="./TextureCoord.js"></script>
     <script src="./Texture.js"></script>
     <script src="./Model.js"></script>
     <script src="./main.js"></script>

@@ -4,6 +4,7 @@ let gl;                         // The webgl context.
 let surface;                    // A surface model
 let shProgram;                  // A shader program
 let spaceball;                  // A SimpleRotator object that lets the user rotate the view by mouse.
+let uvDrawer;
 
 let zoomFactor = -25;
 
@@ -45,6 +46,8 @@ function draw() {
     gl.uniform1i(shProgram.iSpecularTexture, 2);
 
     surface.Draw();
+
+    uvDrawer.draw();
 }
 
 /* Initialize the WebGL context */
@@ -67,6 +70,9 @@ function initGL() {
     shProgram.iDiffuseTexture = gl.getUniformLocation(prog, "diffuseTexture");
     shProgram.iNormalTexture = gl.getUniformLocation(prog, "normalTexture");
     shProgram.iSpecularTexture = gl.getUniformLocation(prog, "specularTexture");
+
+    shProgram.iPoint = gl.getUniformLocation(prog, "point");
+    shProgram.iAngle = gl.getUniformLocation(prog, "angle");
 
     surface = new Model(gl, shProgram);
     surface.CreateSurfaceData();
@@ -102,6 +108,7 @@ function createProgram(gl, vShader, fShader) {
 
 function update(){
     surface.CreateSurfaceData();
+    uvDrawer.update();
     draw();
 }
 
@@ -117,6 +124,7 @@ document.getElementById('A').addEventListener('change', update);
 document.getElementById('B').addEventListener('change', update);
 document.getElementById('C').addEventListener('change', update);
 document.getElementById('D').addEventListener('change', update);
+document.getElementById('Angle').addEventListener('input', draw);
 document.addEventListener('draw', draw);
 
 
@@ -145,6 +153,8 @@ function init() {
     }
 
     spaceball = new TrackballRotator(canvas, draw, 0);
+    uvDrawer = new TexCoordDrawer(surface);
+    uvDrawer.init();
 
     draw();
 }
